@@ -112,8 +112,8 @@
   <!-- New request -->
   <section id="tab-new">
     <form class="card" id="form" novalidate>
-      <p class="notice">Trial stage: this page helps with maintenance of Suhrawardy Hall and is not part of BUET's official website. For sensitive matters, contact the Provost/ Assistant Provosts directly.</p>
-      <label for="email">BUET email</label>
+      <p class="notice">This page helps with maintenance of Suhrawardy Hall and is not part of BUET's official website. For sensitive matters, contact the Provost/ Assistant Provosts directly.</p>
+      <label for="email">Your email address</label>
       <input id="email" type="email" autocomplete="off" inputmode="email" placeholder="Must end in buet.ac.bd" required>
       <label for="studentId">Student ID</label>
       <input id="studentId" autocomplete="off" required>
@@ -232,7 +232,7 @@
     var missing = [];
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) missing.push('a valid email');
     else if (!domainOk(f.email)) {
-      $('form-error').textContent = 'Please use your BUET email address (ending in ' + emailDomain + ').';
+      $('form-error').textContent = 'Please use an email address ending in ' + emailDomain + '.';
       return;
     }
     if (!f.studentId) missing.push('Student ID');
