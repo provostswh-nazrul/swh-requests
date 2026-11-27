@@ -127,26 +127,22 @@
   <button class="install-close" type="button" aria-label="Close">×</button>
 </div>
 <main id="list"><div class="empty">Loading requests…</div></main>
-<footer class="credit"><button class="linkbtn" id="forget" type="button">Change access key</button> · Developed by Dr Nazrul Islam</footer>
+<footer class="credit"><button class="linkbtn" id="forget" type="button">Sign out</button> · Developed by Dr Nazrul Islam</footer>
 <div class="toast" id="toast"></div>
 
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script>
-  // The supervisor access key (the ?k= part of the supervisor web link) is kept on
-  // this phone only. It arrives once via supervisor.html#k=<key>, or is typed in.
-  var KEY_STORE = 'swhSupervisorKey';
-  function storedKey() { try { return localStorage.getItem(KEY_STORE) || ''; } catch (e) { return ''; } }
-  function storeKey(k) { try { if (k) localStorage.setItem(KEY_STORE, k); else localStorage.removeItem(KEY_STORE); } catch (e) {} }
-  var PAGE_KEY = (function () {
-    var m = (location.hash || '').match(/k=([A-Za-z0-9]+)/);
-    if (m) {
-      storeKey(m[1]);
-      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-      return m[1];
-    }
-    return storedKey();
-  })();
+  // Supervisors sign in with the supervisor code, once per phone. The code is kept
+  // on this phone only and is used both to load requests and to save changes.
+  var CODE_STORE = 'swhSupervisorCode';
+  function storedCode() { try { return localStorage.getItem(CODE_STORE) || ''; } catch (e) { return ''; } }
+  function storeCode(c) { try { if (c) localStorage.setItem(CODE_STORE, c); else localStorage.removeItem(CODE_STORE); } catch (e) {} }
+  try { localStorage.removeItem('swhSupervisorKey'); } catch (e) {}       // from the earlier key-based version
+  if (/k=/.test(location.hash || '')) {                                     // old links with #k=… : drop the key
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  }
+  var CODE = storedCode();
   var STATUSES = ['Received', 'In Progress', 'Resolved'];
   var all = [];
   var filter = 'open';
@@ -208,8 +204,6 @@
         '<textarea id="note-' + esc(r.id) + '" placeholder="e.g. Electrician will visit tomorrow"></textarea>' +
         '<label for="who-' + esc(r.id) + '">Your name</label>' +
         '<input class="who" id="who-' + esc(r.id) + '" value="' + esc(getName()) + '" placeholder="Shown in the Admin update column">' +
-        '<label for="code-' + esc(r.id) + '">Supervisor code</label>' +
-        '<input class="who" id="code-' + esc(r.id) + '" type="password" inputmode="numeric" autocomplete="off" placeholder="Required to save">' +
         '<button type="button" class="save" data-act="save">Save</button>' +
         '<div class="msg" id="msg-' + esc(r.id) + '"></div>' +
         '</div>';
@@ -246,28 +240,34 @@
     render();
   }
 
-  function askKey(message) {
-    document.getElementById('sub').textContent = 'Access key needed';
+  function askCode(message) {
+    all = []; counts();                       // show nothing from before signing in
+    document.getElementById('sub').textContent = 'Sign in';
     document.getElementById('list').innerHTML =
-      '<div class="card keycard">' +
-      '<p>' + esc(message || 'Enter the supervisor access key you were given (the part after ?k= in the supervisor link). It is saved on this phone only.') + '</p>' +
-      '<label for="keyin">Access key</label>' +
-      '<input class="who" id="keyin" autocomplete="off" autocapitalize="off" spellcheck="false">' +
-      '<button type="button" class="save" id="keysave">Continue</button>' +
-      '</div>';
-    document.getElementById('keysave').addEventListener('click', function () {
-      var raw = document.getElementById('keyin').value.trim();
-      var m = raw.match(/k=([A-Za-z0-9]+)/);
-      var k = m ? m[1] : raw.replace(/[^A-Za-z0-9]/g, '');
-      if (!k) return;
-      PAGE_KEY = k; storeKey(k); load();
+      '<form class="card keycard" id="codeform">' +
+      '<p>' + esc(message || 'Enter the supervisor code. It is remembered on this phone, so you only enter it once.') + '</p>' +
+      '<label for="codein">Supervisor code</label>' +
+      '<input class="who" id="codein" type="password" inputmode="numeric" autocomplete="off">' +
+      '<button type="submit" class="save" id="codesave">Continue</button>' +
+      '</form>';
+    document.getElementById('codeform').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var c = document.getElementById('codein').value.trim();
+      if (!c) return;
+      CODE = c; storeCode(c); load();
     });
   }
 
   function failed(err) {
-    if (/link is not valid/i.test(err && err.message || '')) {
-      PAGE_KEY = ''; storeKey('');
-      askKey('That access key is not valid (it may have been changed). Enter the current key.');
+    var m = err && err.message || '';
+    if (/wrong supervisor code|link is not valid/i.test(m)) {
+      CODE = ''; storeCode('');
+      askCode('That code is not correct (it may have been changed). Enter the current supervisor code.');
+      return;
+    }
+    if (/too many wrong codes/i.test(m)) {
+      CODE = ''; storeCode('');
+      askCode(m);
       return;
     }
     document.getElementById('sub').textContent = 'Could not load';
@@ -276,9 +276,9 @@
 
   function load() {
     if (openPanel) return;   // don't redraw while someone is typing an update
-    if (!PAGE_KEY) { if (!document.getElementById('keyin')) askKey(); return; }
+    if (!CODE) { if (!document.getElementById('codein')) askCode(); return; }
     document.getElementById('sub').textContent = 'Loading…';
-    swhApi('supervisorList', { key: PAGE_KEY }).then(loaded, failed);
+    swhApi('supervisorList', { code: CODE }).then(loaded, failed);
   }
 
   function save(id, btn) {
@@ -286,11 +286,9 @@
     var status = picked[id] || r.status;
     var note = document.getElementById('note-' + id).value.trim();
     var who = document.getElementById('who-' + id).value.trim();
-    var code = document.getElementById('code-' + id).value.trim();
     var msg = document.getElementById('msg-' + id);
     if (status === r.status && !note) { msg.textContent = 'Choose a different status or write a note.'; return; }
     if (!who) { msg.textContent = 'Please enter your name.'; return; }
-    if (!code) { msg.textContent = 'Please enter the supervisor code.'; return; }
     setName(who);
     btn.disabled = true; btn.textContent = 'Saving…'; msg.textContent = '';
     var done = function(data) {
@@ -301,9 +299,12 @@
     };
     var fail = function(err) {
       btn.disabled = false; btn.textContent = 'Save';
+      if (/wrong supervisor code|too many wrong codes/i.test(err && err.message || '')) {
+        openPanel = null; failed(err); return;
+      }
       msg.textContent = 'Not saved: ' + (err && err.message || err);
     };
-    swhApi('supervisorUpdate', { key: PAGE_KEY, requestId: id, status: status, note: note, by: who, code: code })
+    swhApi('supervisorUpdate', { code: CODE, requestId: id, status: status, note: note, by: who })
       .then(done, fail);
   }
 
@@ -327,7 +328,7 @@
     render();
   });
   document.getElementById('forget').addEventListener('click', function () {
-    PAGE_KEY = ''; storeKey(''); openPanel = null; askKey();
+    CODE = ''; storeCode(''); openPanel = null; askCode();
   });
   document.addEventListener('visibilitychange', function() { if (!document.hidden) load(); });
   setInterval(load, 120000);
