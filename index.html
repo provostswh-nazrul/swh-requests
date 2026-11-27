@@ -136,6 +136,18 @@
       <div class="error" id="form-error"></div>
     </form>
 
+    <div class="card" id="verify" hidden>
+      <div class="muted">Check your email</div>
+      <p>We sent a 6-digit code to <b id="verify-email"></b>. Enter it below to submit your request.
+        It can take a minute to arrive; please also check Spam/Junk.</p>
+      <label for="verify-code">Verification code</label>
+      <input id="verify-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
+      <button class="primary" id="verify-btn" type="button">Verify and submit</button>
+      <button class="secondary" id="verify-resend" type="button">Send a new code</button>
+      <button class="secondary" id="verify-back" type="button">Change details</button>
+      <div class="error" id="verify-error"></div>
+    </div>
+
     <div class="card done" id="done" hidden>
       <div class="muted">Your request was received</div>
       <div class="big" id="done-id"></div>
@@ -177,6 +189,7 @@
   // Each page action maps to one API call (Api.gs in the Apps Script project).
   var ACTIONS = {
     swhResidentConfig: function () { return swhApi('config'); },
+    swhSendVerificationCode: function (a) { return swhApi('sendCode', { email: a[0] }); },
     swhResidentSubmit: function (a) { return swhApi('submit', { request: a[0] }); },
     swhResidentLookup: function (a) { return swhApi('lookup', { email: a[0], studentId: a[1] }); }
   };
@@ -201,6 +214,7 @@
   }
 
   function drawConfig(cfg) {
+    verifyNeeded = !!cfg.verifyEmail;
     if (cfg.emailDomain) {
       emailDomain = cfg.emailDomain;
       $('email').placeholder = 'Must end in ' + emailDomain;
@@ -244,21 +258,90 @@
     if (!f.description) missing.push('description');
     if (missing.length) { $('form-error').textContent = 'Please fill in: ' + missing.join(', ') + '.'; return; }
     $('form-error').textContent = '';
-    $('submit').disabled = true; $('submit').textContent = 'Submitting…';
+    pending = f;
+    if (verifyNeeded) {
+      f.verifyToken = getVerifyPass(f.email);
+      if (!f.verifyToken) { sendCode(); return; }
+    }
+    doSubmit();
+  });
+
+  // ---- Email verification (on/off is decided by the script: SWH_EMAIL_VERIFICATION) ----
+  // A verified phone keeps a signed pass for its email, so it is not asked again for a while.
+  var verifyNeeded = false;
+  var pending = null;
+  function getVerifyPass(email) {
+    try { var m = JSON.parse(localStorage.getItem('swh_verified') || '{}'); return m[String(email).toLowerCase()] || ''; }
+    catch (e) { return ''; }
+  }
+  function setVerifyPass(email, pass) {
+    try {
+      var m = {};
+      if (pass) m[String(email).toLowerCase()] = pass;       // keep only the latest email on this phone
+      localStorage.setItem('swh_verified', JSON.stringify(m));
+    } catch (e) {}
+  }
+  function busy(btn, text) { btn.disabled = !!text; btn.textContent = text || btn.getAttribute('data-label'); }
+  ['submit', 'verify-btn', 'verify-resend'].forEach(function(id) { $(id).setAttribute('data-label', $(id).textContent); });
+  function inVerify() { return !$('verify').hidden; }
+  function showError(msg) { $(inVerify() ? 'verify-error' : 'form-error').textContent = msg; }
+
+  function sendCode() {
+    var btn = inVerify() ? $('verify-resend') : $('submit');
+    busy(btn, 'Sending code…');
+    call('swhSendVerificationCode', [pending.email], function(r) {
+      busy(btn);
+      if (r && r.notNeeded) { verifyNeeded = false; doSubmit(); return; }   // switched off meanwhile
+      $('verify-email').textContent = pending.email;
+      $('verify-code').value = ''; $('verify-error').textContent = '';
+      $('form').hidden = true; $('verify').hidden = false;
+      if (btn.id === 'verify-resend') $('verify-error').textContent = 'A new code was sent.';
+      window.scrollTo(0, 0);
+      $('verify-code').focus();
+    }, function(err) {
+      busy(btn);
+      showError('Code not sent: ' + (err && err.message || err));
+    });
+  }
+
+  function doSubmit() {
+    var f = pending;
+    var btn = inVerify() ? $('verify-btn') : $('submit');
+    busy(btn, 'Submitting…');
     call('swhResidentSubmit', [f], function(res) {
-      $('submit').disabled = false; $('submit').textContent = 'Submit request';
+      busy(btn);
+      if (res.verifyToken) setVerifyPass(f.email, res.verifyToken);
       $('done-id').textContent = res.requestId;
       $('done-email').textContent = res.emailResult || '';
-      $('form').hidden = true; $('done').hidden = false;
+      $('form').hidden = true; $('verify').hidden = true; $('done').hidden = false;
       lastSubmitted = { email: f.email, studentId: f.studentId };
       ['email', 'studentId', 'name', 'room', 'phone', 'category', 'location', 'description'].forEach(function(k) { $(k).value = ''; });
+      pending = null;
       window.scrollTo(0, 0);
     }, function(err) {
-      $('submit').disabled = false; $('submit').textContent = 'Submit request';
-      $('form-error').textContent = 'Not submitted: ' + (err && err.message || err);
+      busy(btn);
+      var msg = err && err.message || String(err);
+      if (/^VERIFY_REQUIRED/.test(msg)) {           // pass expired or verification just switched on
+        verifyNeeded = true; setVerifyPass(f.email, ''); delete f.verifyToken;
+        sendCode();
+        return;
+      }
+      showError((inVerify() ? '' : 'Not submitted: ') + msg);
     });
+  }
+
+  $('verify-btn').addEventListener('click', function() {
+    var code = $('verify-code').value.replace(/\D/g, '');
+    if (code.length !== 6) { $('verify-error').textContent = 'Please enter the 6-digit code from the email.'; return; }
+    $('verify-error').textContent = '';
+    pending.verifyCode = code; delete pending.verifyToken;
+    doSubmit();
   });
-  $('done-another').addEventListener('click', function() { $('done').hidden = true; $('form').hidden = false; });
+  $('verify-code').addEventListener('keydown', function(e) { if (e.key === 'Enter') $('verify-btn').click(); });
+  $('verify-resend').addEventListener('click', function() { $('verify-error').textContent = ''; sendCode(); });
+  $('verify-back').addEventListener('click', function() { $('verify').hidden = true; $('form').hidden = false; });
+  $('done-another').addEventListener('click', function() { $('done').hidden = true; $('verify').hidden = true; $('form').hidden = false; });
+
   $('done-track').addEventListener('click', function() {
     $('t-email').value = lastSubmitted.email; $('t-studentId').value = lastSubmitted.studentId;
     showTab('track'); lookup();
