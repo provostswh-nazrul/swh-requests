@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#137f78">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest-supervisor.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-supervisor.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Supervisor Desk">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>SWH Supervisor Desk</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --text: #1d2330; --muted: #5d6776; --line: #e1e5ea;
+    --brand: #137f78; --brand-text: #ffffff;
+    --urgent-bg: #fde8e7; --urgent-text: #a3261c;
+    --received-bg: #eef1f5; --received-text: #3f4a5a;
+    --progress-bg: #dbe9f7; --progress-text: #0b5394;
+    --resolved-bg: #dcefe0; --resolved-text: #1e6b34;
+    --chip-on-bg: #137f78; --chip-on-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --card: #1c222b; --text: #e8ecf1; --muted: #9aa5b4; --line: #2c3440;
+      --brand: #1a9d94; --urgent-bg: #4a1f1c; --urgent-text: #ffb4ab;
+      --received-bg: #2a313c; --received-text: #c9d1dc;
+      --progress-bg: #1d3550; --progress-text: #9cc7f2;
+      --resolved-bg: #1c3a26; --resolved-text: #9fd9ae;
+      --chip-on-bg: #1a9d94;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--brand); color: var(--brand-text);
+           padding: 14px 16px 12px; }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .sub { font-size: 13px; opacity: .9; margin-top: 2px; }
+  .refresh { background: transparent; border: 1px solid rgba(255,255,255,.6); color: var(--brand-text);
+             border-radius: 8px; padding: 5px 10px; font-size: 13px; float: right; cursor: pointer; }
+  .bar { background: var(--bg); padding: 10px 16px 6px; border-bottom: 1px solid var(--line); }
+  .search { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+            background: var(--card); color: var(--text); font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 4px; }
+  .chip { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--text);
+          border-radius: 999px; padding: 6px 14px; font-size: 14px; cursor: pointer; }
+  .chip.on { background: var(--chip-on-bg); color: var(--chip-on-text); border-color: transparent; }
+  .chip .n { opacity: .75; margin-left: 4px; }
+  main { padding: 12px 16px 32px; max-width: 720px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+          padding: 14px; margin-bottom: 12px; }
+  .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .id { font-weight: 700; font-size: 17px; color: var(--brand); }
+  .pill { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; }
+  .pill.received { background: var(--received-bg); color: var(--received-text); }
+  .pill.progress { background: var(--progress-bg); color: var(--progress-text); }
+  .pill.resolved { background: var(--resolved-bg); color: var(--resolved-text); }
+  .pill.urgent { background: var(--urgent-bg); color: var(--urgent-text); }
+  .days { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .cat { font-weight: 600; margin-top: 8px; }
+  .desc { margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
+  .meta { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .call { display: inline-block; margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--brand);
+          text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+  .note { margin-top: 8px; font-size: 13px; color: var(--muted); border-left: 3px solid var(--line);
+          padding-left: 8px; white-space: pre-wrap; word-break: break-word; }
+  .toggle { margin-top: 10px; width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--brand);
+            background: transparent; color: var(--brand); font-size: 15px; font-weight: 600; cursor: pointer; }
+  .panel { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .panel label { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+  .statuses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .sbtn { padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--card);
+          color: var(--text); font-size: 14px; cursor: pointer; }
+  .sbtn.on { background: var(--brand); color: var(--brand-text); border-color: transparent; font-weight: 600; }
+  textarea, .who { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px;
+                   background: var(--bg); color: var(--text); font: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  .save { margin-top: 10px; width: 100%; padding: 12px; border: 0; border-radius: 10px;
+          background: var(--brand); color: var(--brand-text); font-size: 16px; font-weight: 600; cursor: pointer; }
+  .save:disabled { opacity: .6; }
+  .msg { font-size: 13px; margin-top: 6px; color: var(--urgent-text); }
+  .empty, .error { text-align: center; color: var(--muted); padding: 40px 12px; }
+  .error { color: var(--urgent-text); }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1d2330; color: #fff;
+           padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s;
+           pointer-events: none; max-width: calc(100% - 32px); }
+  .toast.show { opacity: 1; }
+  [hidden] { display: none !important; }
+  header { padding-top: max(14px, env(safe-area-inset-top)); }
+  .keycard { max-width: 480px; margin: 24px auto; }
+  .keycard label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
+  .keycard p { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+  .linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; font-size: 12px; cursor: pointer; padding: 0; }
+  .install { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line);
+             border-radius: 14px; padding: 10px 12px; margin: 12px 16px 0; font-size: 14px; }
+  .install .install-text { flex: 1; }
+  .install .install-btn { border: 0; border-radius: 8px; background: var(--brand); color: var(--brand-text);
+                          padding: 8px 12px; font-weight: 600; cursor: pointer; }
+  .install .install-close { border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .credit { max-width: 720px; margin: 0 auto; padding: 0 16px 20px; text-align: right;
+            font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <button class="refresh" id="refresh" type="button">Refresh</button>
+  <h1>Supervisor Desk · Suhrawardy Hall</h1>
+  <div class="sub" id="sub">Loading…</div>
+</header>
+<div class="bar">
+  <input class="search" id="q" type="search" placeholder="Search ID, category, room or description">
+  <div class="chips" id="chips">
+    <button class="chip on" data-f="open" type="button">Open<span class="n" id="n-open"></span></button>
+    <button class="chip" data-f="urgent" type="button">Urgent<span class="n" id="n-urgent"></span></button>
+    <button class="chip" data-f="Received" type="button">Received<span class="n" id="n-received"></span></button>
+    <button class="chip" data-f="In Progress" type="button">In Progress<span class="n" id="n-progress"></span></button>
+    <button class="chip" data-f="Resolved" type="button">Resolved<span class="n" id="n-resolved"></span></button>
+  </div>
+</div>
+<div class="install" id="install" hidden>
+  <span class="install-text"></span>
+  <button class="install-btn" type="button" hidden>Install</button>
+  <button class="install-close" type="button" aria-label="Close">×</button>
+</div>
+<main id="list"><div class="empty">Loading requests…</div></main>
+<footer class="credit"><button class="linkbtn" id="forget" type="button">Change access key</button> · Developed by Dr Nazrul Islam</footer>
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+  // The supervisor access key (the ?k= part of the supervisor web link) is kept on
+  // this phone only. It arrives once via supervisor.html#k=<key>, or is typed in.
+  var KEY_STORE = 'swhSupervisorKey';
+  function storedKey() { try { return localStorage.getItem(KEY_STORE) || ''; } catch (e) { return ''; } }
+  function storeKey(k) { try { if (k) localStorage.setItem(KEY_STORE, k); else localStorage.removeItem(KEY_STORE); } catch (e) {} }
+  var PAGE_KEY = (function () {
+    var m = (location.hash || '').match(/k=([A-Za-z0-9]+)/);
+    if (m) {
+      storeKey(m[1]);
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+      return m[1];
+    }
+    return storedKey();
+  })();
+  var STATUSES = ['Received', 'In Progress', 'Resolved'];
+  var all = [];
+  var filter = 'open';
+  var openPanel = null;          // id of the card whose update panel is open
+  var picked = {};               // id -> status chosen in the panel
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function getName() { try { return localStorage.getItem('swhSupervisorName') || ''; } catch (e) { return ''; } }
+  function setName(v) { try { localStorage.setItem('swhSupervisorName', v); } catch (e) {} }
+  function toast(text) {
+    var t = document.getElementById('toast');
+    t.textContent = text; t.classList.add('show');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(function() { t.classList.remove('show'); }, 6000);
+  }
+  function statusClass(s) { return s === 'In Progress' ? 'progress' : s === 'Resolved' ? 'resolved' : 'received'; }
+
+  function matches(r) {
+    if (filter === 'open') return r.status !== 'Resolved';
+    if (filter === 'urgent') return r.status !== 'Resolved' && r.urgency === 'Urgent';
+    return r.status === filter;
+  }
+
+  function counts() {
+    var open = all.filter(function(r) { return r.status !== 'Resolved'; });
+    document.getElementById('n-open').textContent = open.length;
+    document.getElementById('n-urgent').textContent = open.filter(function(r) { return r.urgency === 'Urgent'; }).length;
+    document.getElementById('n-received').textContent = all.filter(function(r) { return r.status === 'Received'; }).length;
+    document.getElementById('n-progress').textContent = all.filter(function(r) { return r.status === 'In Progress'; }).length;
+    document.getElementById('n-resolved').textContent = all.filter(function(r) { return r.status === 'Resolved'; }).length;
+  }
+
+  function card(r) {
+    var days = r.status === 'Resolved' || r.daysOpen === '' ? '' :
+      (r.daysOpen === 0 ? 'Today' : r.daysOpen + (r.daysOpen === 1 ? ' day' : ' days'));
+    var where = [r.room ? 'Room ' + esc(r.room) : '', r.location ? esc(r.location) : ''].filter(Boolean).join(' · ');
+    var html = '<div class="card" data-id="' + esc(r.id) + '">' +
+      '<div class="top"><span class="id">' + esc(r.id) + '</span>' +
+      '<span class="pill ' + statusClass(r.status) + '">' + esc(r.status) + '</span>' +
+      (r.urgency === 'Urgent' ? '<span class="pill urgent">Urgent</span>' : '') +
+      '<span class="days">' + esc(days) + '</span></div>' +
+      '<div class="cat">' + esc(r.category || 'No category') + '</div>' +
+      '<div class="desc">' + esc(r.description) + '</div>' +
+      '<div class="meta">' + (where ? where + ' · ' : '') + 'Submitted ' + esc(r.submitted) + '</div>' +
+      (r.phone ? '<a class="call" href="tel:' + esc(String(r.phone).replace(/[^\d+]/g, '')) + '">Call ' + esc(r.phone) + '</a>' : '') +
+      (r.adminUpdate ? '<div class="note">' + esc(r.adminUpdate) + '</div>' : '');
+    if (openPanel === r.id) {
+      var chosen = picked[r.id] || r.status;
+      html += '<div class="panel">' +
+        '<label>Status</label><div class="statuses">' +
+        STATUSES.map(function(s) {
+          return '<button type="button" class="sbtn' + (s === chosen ? ' on' : '') + '" data-act="pick" data-s="' + esc(s) + '">' + esc(s) + '</button>';
+        }).join('') + '</div>' +
+        '<label for="note-' + esc(r.id) + '">Note for the resident (optional)</label>' +
+        '<textarea id="note-' + esc(r.id) + '" placeholder="e.g. Electrician will visit tomorrow"></textarea>' +
+        '<label for="who-' + esc(r.id) + '">Your name</label>' +
+        '<input class="who" id="who-' + esc(r.id) + '" value="' + esc(getName()) + '" placeholder="Shown in the Admin update column">' +
+        '<label for="code-' + esc(r.id) + '">Supervisor code</label>' +
+        '<input class="who" id="code-' + esc(r.id) + '" type="password" inputmode="numeric" autocomplete="off" placeholder="Required to save">' +
+        '<button type="button" class="save" data-act="save">Save</button>' +
+        '<div class="msg" id="msg-' + esc(r.id) + '"></div>' +
+        '</div>';
+    } else {
+      html += '<button type="button" class="toggle" data-act="open">' +
+        (r.status === 'Resolved' ? 'Reopen or add note' : 'Update status') + '</button>';
+    }
+    return html + '</div>';
+  }
+
+  function render() {
+    counts();
+    var q = document.getElementById('q').value.trim().toLowerCase();
+    var shown = all.filter(function(r) {
+      if (!matches(r)) return false;
+      if (!q) return true;
+      return [r.id, r.category, r.room, r.location, r.description].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    var list = document.getElementById('list');
+    if (!shown.length) {
+      list.innerHTML = '<div class="empty">' + (q ? 'No requests match.' :
+        filter === 'Resolved' ? 'No resolved requests yet.' : 'No requests here.') + '</div>';
+      return;
+    }
+    list.innerHTML = shown.map(card).join('');
+  }
+
+  function loaded(data) {
+    all = data.requests || [];
+    var open = all.filter(function(r) { return r.status !== 'Resolved'; });
+    var urgent = open.filter(function(r) { return r.urgency === 'Urgent'; }).length;
+    document.getElementById('sub').textContent =
+      open.length + ' open' + (urgent ? ' · ' + urgent + ' urgent' : '') + ' · updated ' + data.updatedAt;
+    render();
+  }
+
+  function askKey(message) {
+    document.getElementById('sub').textContent = 'Access key needed';
+    document.getElementById('list').innerHTML =
+      '<div class="card keycard">' +
+      '<p>' + esc(message || 'Enter the supervisor access key you were given (the part after ?k= in the supervisor link). It is saved on this phone only.') + '</p>' +
+      '<label for="keyin">Access key</label>' +
+      '<input class="who" id="keyin" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+      '<button type="button" class="save" id="keysave">Continue</button>' +
+      '</div>';
+    document.getElementById('keysave').addEventListener('click', function () {
+      var raw = document.getElementById('keyin').value.trim();
+      var m = raw.match(/k=([A-Za-z0-9]+)/);
+      var k = m ? m[1] : raw.replace(/[^A-Za-z0-9]/g, '');
+      if (!k) return;
+      PAGE_KEY = k; storeKey(k); load();
+    });
+  }
+
+  function failed(err) {
+    if (/link is not valid/i.test(err && err.message || '')) {
+      PAGE_KEY = ''; storeKey('');
+      askKey('That access key is not valid (it may have been changed). Enter the current key.');
+      return;
+    }
+    document.getElementById('sub').textContent = 'Could not load';
+    document.getElementById('list').innerHTML = '<div class="error">' + esc(err && err.message || err) + '</div>';
+  }
+
+  function load() {
+    if (openPanel) return;   // don't redraw while someone is typing an update
+    if (!PAGE_KEY) { if (!document.getElementById('keyin')) askKey(); return; }
+    document.getElementById('sub').textContent = 'Loading…';
+    swhApi('supervisorList', { key: PAGE_KEY }).then(loaded, failed);
+  }
+
+  function save(id, btn) {
+    var r = all.filter(function(x) { return x.id === id; })[0];
+    var status = picked[id] || r.status;
+    var note = document.getElementById('note-' + id).value.trim();
+    var who = document.getElementById('who-' + id).value.trim();
+    var code = document.getElementById('code-' + id).value.trim();
+    var msg = document.getElementById('msg-' + id);
+    if (status === r.status && !note) { msg.textContent = 'Choose a different status or write a note.'; return; }
+    if (!who) { msg.textContent = 'Please enter your name.'; return; }
+    if (!code) { msg.textContent = 'Please enter the supervisor code.'; return; }
+    setName(who);
+    btn.disabled = true; btn.textContent = 'Saving…'; msg.textContent = '';
+    var done = function(data) {
+      openPanel = null; delete picked[id];
+      toast(id + ' saved' + (status !== r.status ? ': ' + status : '') +
+        (data && data.emailResult ? '. ' + data.emailResult : ''));
+      loaded(data);
+    };
+    var fail = function(err) {
+      btn.disabled = false; btn.textContent = 'Save';
+      msg.textContent = 'Not saved: ' + (err && err.message || err);
+    };
+    swhApi('supervisorUpdate', { key: PAGE_KEY, requestId: id, status: status, note: note, by: who, code: code })
+      .then(done, fail);
+  }
+
+  document.getElementById('list').addEventListener('click', function(e) {
+    var b = e.target.closest('[data-act]');
+    if (!b) return;
+    var id = b.closest('.card').getAttribute('data-id');
+    var act = b.getAttribute('data-act');
+    if (act === 'open') { openPanel = id; render(); }
+    else if (act === 'pick') { picked[id] = b.getAttribute('data-s'); render(); }
+    else if (act === 'save') { save(id, b); }
+  });
+  document.getElementById('q').addEventListener('input', render);
+  document.getElementById('refresh').addEventListener('click', function() { openPanel = null; load(); });
+  document.getElementById('chips').addEventListener('click', function(e) {
+    var b = e.target.closest('.chip');
+    if (!b) return;
+    filter = b.getAttribute('data-f');
+    openPanel = null;
+    Array.prototype.forEach.call(document.querySelectorAll('.chip'), function(c) { c.classList.toggle('on', c === b); });
+    render();
+  });
+  document.getElementById('forget').addEventListener('click', function () {
+    PAGE_KEY = ''; storeKey(''); openPanel = null; askKey();
+  });
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) load(); });
+  setInterval(load, 120000);
+  load();
+</script>
+<script src="install.js"></script>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#137f78">
+<meta name="description" content="Submit and track Suhrawardy Hall requests and complaints.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SWH Requests">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Suhrawardy Hall requests</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --text: #1d2330; --muted: #5d6776; --line: #dfe3e8;
+    --brand: #137f78; --brand-text: #ffffff; --error: #a3261c;
+    --received-bg: #eef1f5; --received-text: #3f4a5a;
+    --progress-bg: #dbe9f7; --progress-text: #0b5394;
+    --resolved-bg: #dcefe0; --resolved-text: #1e6b34;
+    --urgent-bg: #fde8e7; --urgent-text: #a3261c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --card: #1c222b; --text: #e8ecf1; --muted: #9aa5b4; --line: #2c3440;
+      --brand: #1a9d94; --error: #ffb4ab;
+      --received-bg: #2a313c; --received-text: #c9d1dc;
+      --progress-bg: #1d3550; --progress-text: #9cc7f2;
+      --resolved-bg: #1c3a26; --resolved-text: #9fd9ae;
+      --urgent-bg: #4a1f1c; --urgent-text: #ffb4ab;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { background: var(--brand); color: var(--brand-text); padding: 16px 16px 0; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 600; }
+  header p { margin: 4px 0 12px; font-size: 13px; opacity: .9; }
+  .tabs { display: flex; gap: 4px; }
+  .tab { flex: 1; background: transparent; border: 0; color: var(--brand-text); opacity: .75;
+         padding: 10px 4px 12px; font-size: 15px; font-weight: 600; cursor: pointer;
+         border-bottom: 3px solid transparent; }
+  .tab.on { opacity: 1; border-bottom-color: var(--brand-text); }
+  main { padding: 16px; max-width: 640px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .notice { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  label .opt { font-weight: 400; color: var(--muted); }
+  input, select, textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+                            background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
+  textarea { min-height: 110px; resize: vertical; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .seg button { padding: 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--card);
+                color: var(--text); font-size: 15px; cursor: pointer; }
+  .seg button.on { background: var(--brand); color: var(--brand-text); border-color: transparent; font-weight: 600; }
+  .seg button.on.urgent { background: var(--urgent-text); }
+  .primary { margin-top: 18px; width: 100%; padding: 13px; border: 0; border-radius: 10px; background: var(--brand);
+             color: var(--brand-text); font-size: 16px; font-weight: 600; cursor: pointer; }
+  .primary:disabled { opacity: .6; }
+  .secondary { margin-top: 10px; width: 100%; padding: 12px; border: 1px solid var(--brand); border-radius: 10px;
+               background: transparent; color: var(--brand); font-size: 15px; font-weight: 600; cursor: pointer; }
+  .error { color: var(--error); font-size: 14px; margin-top: 10px; }
+  .done { text-align: center; }
+  .done .big { font-size: 28px; font-weight: 700; color: var(--brand); margin: 6px 0; letter-spacing: .5px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .id { font-weight: 700; font-size: 17px; color: var(--brand); }
+  .pill { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; }
+  .pill.received { background: var(--received-bg); color: var(--received-text); }
+  .pill.progress { background: var(--progress-bg); color: var(--progress-text); }
+  .pill.resolved { background: var(--resolved-bg); color: var(--resolved-text); }
+  .pill.urgent { background: var(--urgent-bg); color: var(--urgent-text); }
+  .cat { font-weight: 600; margin-top: 8px; }
+  .desc { margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
+  .meta { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 12px; }
+  .step { font-size: 12px; text-align: center; color: var(--muted); padding-top: 6px; border-top: 4px solid var(--line); }
+  .step.on { color: var(--brand); border-top-color: var(--brand); font-weight: 600; }
+  .updates { margin-top: 10px; font-size: 13px; color: var(--muted); border-left: 3px solid var(--line);
+             padding-left: 8px; white-space: pre-wrap; word-break: break-word; }
+  .empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+  [hidden] { display: none !important; }
+  header { padding-top: max(16px, env(safe-area-inset-top)); }
+  .install { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line);
+             border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+  .install .install-text { flex: 1; }
+  .install .install-btn { border: 0; border-radius: 8px; background: var(--brand); color: var(--brand-text);
+                          padding: 8px 12px; font-weight: 600; cursor: pointer; }
+  .install .install-close { border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .credit { max-width: 640px; margin: 0 auto; padding: 0 16px 20px; text-align: right;
+            font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Suhrawardy Hall requests</h1>
+  <p>Report a problem or request a service, then follow its progress.</p>
+  <div class="tabs">
+    <button class="tab on" data-tab="new" type="button">New request</button>
+    <button class="tab" data-tab="track" type="button">My requests</button>
+  </div>
+</header>
+
+<main>
+  <div class="install" id="install" hidden>
+    <span class="install-text"></span>
+    <button class="install-btn" type="button" hidden>Install</button>
+    <button class="install-close" type="button" aria-label="Close">×</button>
+  </div>
+  <!-- New request -->
+  <section id="tab-new">
+    <form class="card" id="form" novalidate>
+      <p class="notice">Trial stage: this page helps with maintenance of Suhrawardy Hall and is not part of BUET's official website. For sensitive matters, contact the Provost/ Assistant Provosts directly.</p>
+      <label for="email">BUET email</label>
+      <input id="email" type="email" autocomplete="off" inputmode="email" placeholder="Must end in buet.ac.bd" required>
+      <label for="studentId">Student ID</label>
+      <input id="studentId" autocomplete="off" required>
+      <label for="name">Resident name</label>
+      <input id="name" autocomplete="off" required>
+      <label for="room">Room / block</label>
+      <input id="room" autocomplete="off" required>
+      <label for="phone">Phone number</label>
+      <input id="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="e.g. 01712345678" required>
+      <label for="category">Category</label>
+      <select id="category" required><option value="">Choose the category that best fits</option></select>
+      <label for="location">Location <span class="opt">(optional)</span></label>
+      <input id="location" placeholder="e.g. 3rd floor washroom, east wing">
+      <label for="description">Description</label>
+      <textarea id="description" required placeholder="What is the problem, and since when?"></textarea>
+      <label>How urgent is this issue?</label>
+      <div class="seg" id="urgency"></div>
+      <button class="primary" id="submit" type="submit">Submit request</button>
+      <div class="error" id="form-error"></div>
+    </form>
+
+    <div class="card done" id="done" hidden>
+      <div class="muted">Your request was received</div>
+      <div class="big" id="done-id"></div>
+      <div class="muted" id="done-email"></div>
+      <p class="muted">Keep this Request ID. You will get an email each time its status changes.</p>
+      <button class="primary" id="done-track" type="button">See my requests</button>
+      <button class="secondary" id="done-another" type="button">Submit another request</button>
+    </div>
+  </section>
+
+  <!-- My requests -->
+  <section id="tab-track" hidden>
+    <form class="card" id="lookup" novalidate>
+      <p class="notice">Enter the email and Student ID you used when submitting.</p>
+      <label for="t-email">Email</label>
+      <input id="t-email" type="email" autocomplete="off" inputmode="email" required>
+      <label for="t-studentId">Student ID</label>
+      <input id="t-studentId" autocomplete="off" required>
+      <button class="primary" id="lookup-btn" type="submit">Show my requests</button>
+      <div class="error" id="lookup-error"></div>
+    </form>
+    <div id="results"></div>
+  </section>
+</main>
+<footer class="credit">Developed by Dr Nazrul Islam</footer>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script>
+  var urgency = 'Routine';
+
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  // Each page action maps to one API call (Api.gs in the Apps Script project).
+  var ACTIONS = {
+    swhResidentConfig: function () { return swhApi('config'); },
+    swhResidentSubmit: function (a) { return swhApi('submit', { request: a[0] }); },
+    swhResidentLookup: function (a) { return swhApi('lookup', { email: a[0], studentId: a[1] }); }
+  };
+  function call(fn, args, ok, fail) {
+    ACTIONS[fn](args).then(ok, fail);
+  }
+  function showTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(t) {
+      t.classList.toggle('on', t.getAttribute('data-tab') === name);
+    });
+    $('tab-new').hidden = name !== 'new';
+    $('tab-track').hidden = name !== 'track';
+  }
+  document.querySelector('.tabs').addEventListener('click', function(e) {
+    var t = e.target.closest('.tab'); if (t) showTab(t.getAttribute('data-tab'));
+  });
+
+  var emailDomain = 'buet.ac.bd';
+  function domainOk(email) {
+    var host = String(email).toLowerCase().split('@')[1] || '';
+    return host === emailDomain || host.slice(-(emailDomain.length + 1)) === '.' + emailDomain;
+  }
+
+  function drawConfig(cfg) {
+    if (cfg.emailDomain) {
+      emailDomain = cfg.emailDomain;
+      $('email').placeholder = 'Must end in ' + emailDomain;
+    }
+    $('category').innerHTML = '<option value="">Choose the category that best fits</option>' +
+      cfg.categories.map(function(c) { return '<option>' + esc(c) + '</option>'; }).join('');
+    $('urgency').innerHTML = cfg.urgencies.map(function(u) {
+      return '<button type="button" data-u="' + esc(u) + '" class="' + (u === urgency ? 'on' : '') + (u === 'Urgent' ? ' urgent' : '') + '">' + esc(u) + '</button>';
+    }).join('');
+  }
+  $('urgency').addEventListener('click', function(e) {
+    var b = e.target.closest('button'); if (!b) return;
+    urgency = b.getAttribute('data-u');
+    Array.prototype.forEach.call($('urgency').children, function(x) { x.classList.toggle('on', x === b); });
+  });
+
+  // Nothing personal is stored on the phone: the form always starts empty.
+  // Details from the last submission are kept only while this page is open,
+  // so "See my requests" can look them up right away.
+  var lastSubmitted = { email: '', studentId: '' };
+  try { ['swh_email', 'swh_studentId', 'swh_name', 'swh_room'].forEach(function(k) { localStorage.removeItem(k); }); } catch (e) {}
+
+  $('form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var f = {
+      email: $('email').value.trim(), studentId: $('studentId').value.trim(), name: $('name').value.trim(),
+      room: $('room').value.trim(), phone: $('phone').value.trim(), category: $('category').value, location: $('location').value.trim(),
+      description: $('description').value.trim(), urgency: urgency
+    };
+    var missing = [];
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) missing.push('a valid email');
+    else if (!domainOk(f.email)) {
+      $('form-error').textContent = 'Please use your BUET email address (ending in ' + emailDomain + ').';
+      return;
+    }
+    if (!f.studentId) missing.push('Student ID');
+    if (!f.name) missing.push('name');
+    if (!f.room) missing.push('room / block');
+    if (!/^\+?\d{10,15}$/.test(f.phone.replace(/[\s\-().]/g, ''))) missing.push('a valid phone number');
+    if (!f.category) missing.push('category');
+    if (!f.description) missing.push('description');
+    if (missing.length) { $('form-error').textContent = 'Please fill in: ' + missing.join(', ') + '.'; return; }
+    $('form-error').textContent = '';
+    $('submit').disabled = true; $('submit').textContent = 'Submitting…';
+    call('swhResidentSubmit', [f], function(res) {
+      $('submit').disabled = false; $('submit').textContent = 'Submit request';
+      $('done-id').textContent = res.requestId;
+      $('done-email').textContent = res.emailResult || '';
+      $('form').hidden = true; $('done').hidden = false;
+      lastSubmitted = { email: f.email, studentId: f.studentId };
+      ['email', 'studentId', 'name', 'room', 'phone', 'category', 'location', 'description'].forEach(function(k) { $(k).value = ''; });
+      window.scrollTo(0, 0);
+    }, function(err) {
+      $('submit').disabled = false; $('submit').textContent = 'Submit request';
+      $('form-error').textContent = 'Not submitted: ' + (err && err.message || err);
+    });
+  });
+  $('done-another').addEventListener('click', function() { $('done').hidden = true; $('form').hidden = false; });
+  $('done-track').addEventListener('click', function() {
+    $('t-email').value = lastSubmitted.email; $('t-studentId').value = lastSubmitted.studentId;
+    showTab('track'); lookup();
+  });
+
+  function statusClass(s) { return s === 'In Progress' ? 'progress' : s === 'Resolved' ? 'resolved' : 'received'; }
+  function steps(s) {
+    var order = ['Received', 'In Progress', 'Resolved'];
+    var at = order.indexOf(s);
+    return '<div class="steps">' + order.map(function(x, i) {
+      return '<div class="step' + (i <= at ? ' on' : '') + '">' + esc(x) + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function lookup() {
+    var email = $('t-email').value.trim(), sid = $('t-studentId').value.trim();
+    if (!email || !sid) { $('lookup-error').textContent = 'Enter your email and Student ID.'; return; }
+    $('lookup-error').textContent = '';
+    $('lookup-btn').disabled = true; $('lookup-btn').textContent = 'Looking…';
+    call('swhResidentLookup', [email, sid], function(res) {
+      $('lookup-btn').disabled = false; $('lookup-btn').textContent = 'Show my requests';
+      var list = res.requests || [];
+      $('results').innerHTML = !list.length
+        ? '<div class="card empty">No requests found for this email and Student ID.</div>'
+        : list.map(function(r) {
+            return '<div class="card">' +
+              '<div class="top"><span class="id">' + esc(r.id) + '</span>' +
+              '<span class="pill ' + statusClass(r.status) + '">' + esc(r.status) + '</span>' +
+              (r.urgency === 'Urgent' ? '<span class="pill urgent">Urgent</span>' : '') + '</div>' +
+              '<div class="cat">' + esc(r.category) + '</div>' +
+              '<div class="desc">' + esc(r.description) + '</div>' +
+              '<div class="meta">' + (r.location ? esc(r.location) + ' · ' : '') + 'Submitted ' + esc(r.submitted) + '</div>' +
+              steps(r.status) +
+              (r.updates ? '<div class="updates">' + esc(r.updates) + '</div>' : '') +
+              '</div>';
+          }).join('');
+    }, function(err) {
+      $('lookup-btn').disabled = false; $('lookup-btn').textContent = 'Show my requests';
+      $('lookup-error').textContent = (err && err.message) || String(err);
+    });
+  }
+  $('lookup').addEventListener('submit', function(e) { e.preventDefault(); lookup(); });
+
+  call('swhResidentConfig', [], drawConfig, function(err) {
+    $('form-error').textContent = 'Could not load the form: ' + (err && err.message || err);
+  });
+</script>
+<script src="install.js"></script>
+</body>
+</html>
