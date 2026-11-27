@@ -293,6 +293,26 @@
     } catch (e) {}
   }
   function busy(btn, text) { btn.disabled = !!text; btn.textContent = text || btn.getAttribute('data-label'); }
+
+  // "Send a new code" waits 2 minutes after each code (the script enforces the same wait).
+  var RESEND_WAIT_SECONDS = 120;
+  var resendTimers = {};
+  function startResendTimer(id) {
+    var btn = $(id), end = Date.now() + RESEND_WAIT_SECONDS * 1000;
+    clearInterval(resendTimers[id]);
+    function tick() {
+      var left = Math.ceil((end - Date.now()) / 1000);
+      if (left <= 0) {
+        clearInterval(resendTimers[id]);
+        btn.disabled = false; btn.textContent = btn.getAttribute('data-label');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Send a new code in ' + Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2);
+    }
+    tick();
+    resendTimers[id] = setInterval(tick, 1000);
+  }
   ['submit', 'verify-btn', 'verify-resend'].forEach(function(id) { $(id).setAttribute('data-label', $(id).textContent); });
   function inVerify() { return !$('verify').hidden; }
   function showError(msg) { $(inVerify() ? 'verify-error' : 'form-error').textContent = msg; }
@@ -307,6 +327,7 @@
       $('verify-code').value = ''; $('verify-error').textContent = '';
       $('form').hidden = true; $('verify').hidden = false;
       if (btn.id === 'verify-resend') $('verify-error').textContent = 'A new code was sent.';
+      startResendTimer('verify-resend');
       window.scrollTo(0, 0);
       $('verify-code').focus();
     }, function(err) {
@@ -395,6 +416,7 @@
       $('t-verify-code').value = ''; $('t-verify-error').textContent = '';
       $('lookup').hidden = true; $('t-verify').hidden = false; $('results').innerHTML = '';
       if (btn.id === 't-verify-resend') $('t-verify-error').textContent = 'A new code was sent.';
+      startResendTimer('t-verify-resend');
       $('t-verify-code').focus();
     }, function(err) {
       busy(btn);
