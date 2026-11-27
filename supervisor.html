@@ -101,6 +101,16 @@
   .install .install-btn { border: 0; border-radius: 8px; background: var(--brand); color: var(--brand-text);
                           padding: 8px 12px; font-weight: 600; cursor: pointer; }
   .install .install-close { border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .group { display: flex; align-items: center; gap: 8px; margin: 18px 2px 8px; font-size: 13px; font-weight: 700;
+           letter-spacing: .3px; text-transform: uppercase; color: var(--muted); }
+  .group:first-child { margin-top: 4px; }
+  .group .gn { font-size: 12px; border-radius: 999px; padding: 1px 8px; background: var(--line); color: var(--text); }
+  .group.overdue { color: var(--urgent-text); }
+  .group.stale { color: var(--stale-text); }
+  .card.overdue { border-left: 4px solid var(--urgent-text); }
+  .card.stale { border-left: 4px solid var(--stale-text); }
+  :root { --stale-text: #9a6700; }
+  @media (prefers-color-scheme: dark) { :root { --stale-text: #e3b341; } }
   .credit { max-width: 720px; margin: 0 auto; padding: 0 16px 20px; text-align: right;
             font-size: 12px; color: var(--muted); }
 </style>
@@ -179,11 +189,22 @@
     document.getElementById('n-resolved').textContent = all.filter(function(r) { return r.status === 'Resolved'; }).length;
   }
 
+  // Age groups on the supervisor page. Change the numbers here if needed.
+  var OVERDUE_DAYS = 7;           // not resolved for this many days or more → "Overdue"
+  var STALE_RECEIVED_DAYS = 3;    // still "Received" (no action) for this many days or more → "Not started"
+  function ageGroup(r) {
+    var d = typeof r.daysOpen === 'number' ? r.daysOpen : NaN;
+    if (r.status === 'Resolved' || isNaN(d)) return 'other';
+    if (d >= OVERDUE_DAYS) return 'overdue';
+    if (r.status === 'Received' && d >= STALE_RECEIVED_DAYS) return 'stale';
+    return 'other';
+  }
+
   function card(r) {
     var days = r.status === 'Resolved' || r.daysOpen === '' ? '' :
       (r.daysOpen === 0 ? 'Today' : r.daysOpen + (r.daysOpen === 1 ? ' day' : ' days'));
     var where = [r.room ? 'Room ' + esc(r.room) : '', r.location ? esc(r.location) : ''].filter(Boolean).join(' · ');
-    var html = '<div class="card" data-id="' + esc(r.id) + '">' +
+    var html = '<div class="card ' + ageGroup(r) + '" data-id="' + esc(r.id) + '">' +
       '<div class="top"><span class="id">' + esc(r.id) + '</span>' +
       '<span class="pill ' + statusClass(r.status) + '">' + esc(r.status) + '</span>' +
       (r.urgency === 'Urgent' ? '<span class="pill urgent">Urgent</span>' : '') +
@@ -228,15 +249,32 @@
         filter === 'Resolved' ? 'No resolved requests yet.' : 'No requests here.') + '</div>';
       return;
     }
-    list.innerHTML = shown.map(card).join('');
+    // Group open requests by age (Resolved view stays a plain list).
+    if (filter === 'Resolved') { list.innerHTML = shown.map(card).join(''); return; }
+    var groups = [
+      { key: 'overdue', title: 'Overdue · open ' + OVERDUE_DAYS + '+ days', items: [] },
+      { key: 'stale', title: 'Not started · Received for ' + STALE_RECEIVED_DAYS + '+ days', items: [] },
+      { key: 'other', title: 'Other open requests', items: [] }
+    ];
+    shown.forEach(function(r) { groups.filter(function(g) { return g.key === ageGroup(r); })[0].items.push(r); });
+    var used = groups.filter(function(g) { return g.items.length; });
+    if (used.length === 1 && used[0].key === 'other') { list.innerHTML = shown.map(card).join(''); return; }
+    list.innerHTML = used.map(function(g) {
+      return '<div class="group ' + g.key + '">' + esc(g.title) + ' <span class="gn">' + g.items.length + '</span></div>' +
+        g.items.map(card).join('');
+    }).join('');
   }
 
   function loaded(data) {
     all = data.requests || [];
     var open = all.filter(function(r) { return r.status !== 'Resolved'; });
     var urgent = open.filter(function(r) { return r.urgency === 'Urgent'; }).length;
+    var overdueN = open.filter(function(r) { return ageGroup(r) === 'overdue'; }).length;
+    var staleN = open.filter(function(r) { return ageGroup(r) === 'stale'; }).length;
     document.getElementById('sub').textContent =
-      open.length + ' open' + (urgent ? ' · ' + urgent + ' urgent' : '') + ' · updated ' + data.updatedAt;
+      open.length + ' open' + (urgent ? ' · ' + urgent + ' urgent' : '') +
+      (overdueN ? ' · ' + overdueN + ' overdue' : '') + (staleN ? ' · ' + staleN + ' not started' : '') +
+      ' · updated ' + data.updatedAt;
     render();
   }
 
