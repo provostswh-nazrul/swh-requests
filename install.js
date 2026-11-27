@@ -26,7 +26,9 @@
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (isIOS) {
-    text.textContent = 'Install this app: tap the Share button, then "Add to Home Screen".';
+    text.innerHTML = '<b>Install on iPhone:</b> in Safari, tap the Share button ' +
+      '<span aria-hidden="true" style="display:inline-block;border:1.5px solid currentColor;border-radius:4px;padding:0 4px;font-weight:700">&#8679;</span> ' +
+      '(bottom of the screen), scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.';
     btn.hidden = true;
     box.hidden = false;
     return;
