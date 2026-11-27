@@ -1,7 +1,7 @@
 // Service worker: keeps the app screens on the phone so they open instantly and
 // still open without internet. Requests to the Apps Script API are never cached.
 // When you change any file, raise the version number below so phones pick it up.
-var CACHE = 'swh-app-v6';
+var CACHE = 'swh-app-v7';
 var FILES = [
   './', './index.html', './supervisor.html',
   './config.js', './api.js', './install.js',

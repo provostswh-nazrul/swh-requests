@@ -169,6 +169,17 @@
       <button class="primary" id="lookup-btn" type="submit">Show my requests</button>
       <div class="error" id="lookup-error"></div>
     </form>
+    <div class="card" id="t-verify" hidden>
+      <div class="muted">Check your email</div>
+      <p>We sent a 6-digit code to <b id="t-verify-email"></b>. Enter it below to see your requests.
+        It can take a minute to arrive; please also check Spam/Junk.</p>
+      <label for="t-verify-code">Verification code</label>
+      <input id="t-verify-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
+      <button class="primary" id="t-verify-btn" type="button">Verify and show</button>
+      <button class="secondary" id="t-verify-resend" type="button">Send a new code</button>
+      <button class="secondary" id="t-verify-back" type="button">Change details</button>
+      <div class="error" id="t-verify-error"></div>
+    </div>
     <div id="results"></div>
   </section>
 </main>
@@ -191,7 +202,7 @@
     swhResidentConfig: function () { return swhApi('config'); },
     swhSendVerificationCode: function (a) { return swhApi('sendCode', { email: a[0] }); },
     swhResidentSubmit: function (a) { return swhApi('submit', { request: a[0] }); },
-    swhResidentLookup: function (a) { return swhApi('lookup', { email: a[0], studentId: a[1] }); }
+    swhResidentLookup: function (a) { return swhApi('lookup', { email: a[0], studentId: a[1], verifyCode: a[2], verifyToken: a[3] }); }
   };
   function call(fn, args, ok, fail) {
     ACTIONS[fn](args).then(ok, fail);
@@ -321,7 +332,7 @@
     }, function(err) {
       busy(btn);
       var msg = err && err.message || String(err);
-      if (/^VERIFY_REQUIRED/.test(msg)) {           // pass expired or verification just switched on
+      if (/VERIFY_REQUIRED/.test(msg)) {           // pass expired or verification just switched on
         verifyNeeded = true; setVerifyPass(f.email, ''); delete f.verifyToken;
         sendCode();
         return;
@@ -356,13 +367,49 @@
     }).join('') + '</div>';
   }
 
+  // ---- My requests: same email verification as submitting ----
+  var tracking = null;   // {email, sid, verifyCode, verifyToken}
+  ['lookup-btn', 't-verify-btn', 't-verify-resend'].forEach(function(id) { $(id).setAttribute('data-label', $(id).textContent); });
+  function inTrackVerify() { return !$('t-verify').hidden; }
+  function trackError(msg) { $(inTrackVerify() ? 't-verify-error' : 'lookup-error').textContent = msg; }
+
   function lookup() {
     var email = $('t-email').value.trim(), sid = $('t-studentId').value.trim();
     if (!email || !sid) { $('lookup-error').textContent = 'Enter your email and Student ID.'; return; }
     $('lookup-error').textContent = '';
-    $('lookup-btn').disabled = true; $('lookup-btn').textContent = 'Looking…';
-    call('swhResidentLookup', [email, sid], function(res) {
-      $('lookup-btn').disabled = false; $('lookup-btn').textContent = 'Show my requests';
+    tracking = { email: email, sid: sid };
+    if (verifyNeeded) {
+      tracking.verifyToken = getVerifyPass(email);
+      if (!tracking.verifyToken) { sendTrackCode(); return; }
+    }
+    doLookup();
+  }
+
+  function sendTrackCode() {
+    var btn = inTrackVerify() ? $('t-verify-resend') : $('lookup-btn');
+    busy(btn, 'Sending code…');
+    call('swhSendVerificationCode', [tracking.email], function(r) {
+      busy(btn);
+      if (r && r.notNeeded) { verifyNeeded = false; doLookup(); return; }   // switched off meanwhile
+      $('t-verify-email').textContent = tracking.email;
+      $('t-verify-code').value = ''; $('t-verify-error').textContent = '';
+      $('lookup').hidden = true; $('t-verify').hidden = false; $('results').innerHTML = '';
+      if (btn.id === 't-verify-resend') $('t-verify-error').textContent = 'A new code was sent.';
+      $('t-verify-code').focus();
+    }, function(err) {
+      busy(btn);
+      trackError('Code not sent: ' + (err && err.message || err));
+    });
+  }
+
+  function doLookup() {
+    var t = tracking;
+    var btn = inTrackVerify() ? $('t-verify-btn') : $('lookup-btn');
+    busy(btn, 'Looking…');
+    call('swhResidentLookup', [t.email, t.sid, t.verifyCode || '', t.verifyToken || ''], function(res) {
+      busy(btn);
+      if (res.verifyToken) setVerifyPass(t.email, res.verifyToken);
+      $('t-verify').hidden = true; $('lookup').hidden = false;
       var list = res.requests || [];
       $('results').innerHTML = !list.length
         ? '<div class="card empty">No requests found for this email and Student ID.</div>'
@@ -379,11 +426,27 @@
               '</div>';
           }).join('');
     }, function(err) {
-      $('lookup-btn').disabled = false; $('lookup-btn').textContent = 'Show my requests';
-      $('lookup-error').textContent = (err && err.message) || String(err);
+      busy(btn);
+      var msg = err && err.message || String(err);
+      if (/VERIFY_REQUIRED/.test(msg)) {           // pass expired or verification just switched on
+        verifyNeeded = true; setVerifyPass(t.email, ''); delete t.verifyToken;
+        sendTrackCode();
+        return;
+      }
+      trackError(msg);
     });
   }
-  $('lookup').addEventListener('submit', function(e) { e.preventDefault(); lookup(); });
+
+  $('t-verify-btn').addEventListener('click', function() {
+    var code = $('t-verify-code').value.replace(/\D/g, '');
+    if (code.length !== 6) { $('t-verify-error').textContent = 'Please enter the 6-digit code from the email.'; return; }
+    $('t-verify-error').textContent = '';
+    tracking.verifyCode = code; delete tracking.verifyToken;
+    doLookup();
+  });
+  $('t-verify-code').addEventListener('keydown', function(e) { if (e.key === 'Enter') $('t-verify-btn').click(); });
+  $('t-verify-resend').addEventListener('click', function() { $('t-verify-error').textContent = ''; sendTrackCode(); });
+  $('t-verify-back').addEventListener('click', function() { $('t-verify').hidden = true; $('lookup').hidden = false; });  $('lookup').addEventListener('submit', function(e) { e.preventDefault(); lookup(); });
 
   call('swhResidentConfig', [], drawConfig, function(err) {
     $('form-error').textContent = 'Could not load the form: ' + (err && err.message || err);
